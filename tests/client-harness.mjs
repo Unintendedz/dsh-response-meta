@@ -218,12 +218,14 @@ assert(abortedNode.data.turn === 1 && abortedNode.data.step === 1 && abortedNode
 assert(abortedNode.data.firstTokenTime === 2000 && abortedNode.data.lastTokenTime === 3000 && abortedNode.data.outputTokens === null, `aborted node timing, got ${JSON.stringify(abortedNode.data)}`);
 assert(abortedNode.visibility === "visible", "aborted node is visible");
 
-// A text-finalized step materializes nothing (its answer has the strip readout).
+// A text-finalized step hides the already-published live row (its answer has
+// the strip readout) without withdrawing the stable conversation-node key.
 let finalState = definition.start({}, { event: stepStart });
 finalState = definition.update({ state: finalState }, { event: reasoningChunk("hi", 2000) });
 finalState = definition.update({ state: finalState }, { event: textMessage });
 finalState = definition.update({ state: finalState }, { event: stepEnd });
-assert(definition.buildViewNode({ key: "k", kind: definition.kind, id: "1:1", state: finalState, start: { location: { kind: "step" } }, matches: [] }) === null, "text-finalized step materializes nothing");
+const finalizedNode = definition.buildViewNode({ key: "k", kind: definition.kind, id: "1:1", state: finalState, start: { location: { kind: "step" } }, matches: [] });
+assert(finalizedNode !== null && finalizedNode.visibility === "hidden", `text-finalized step hides its live row, got ${JSON.stringify(finalizedNode)}`);
 
 // The stop/finalize race: a reasoning-only assistant/message does NOT count
 // as a visible answer, so the aborted node still materializes — and now
@@ -242,16 +244,30 @@ retried = definition.update({ state: retried }, { event: reasoningChunk("discard
 retried = definition.update({ state: retried }, { event: { type: "llm/retry", seq: 9, time: 2500, data: { turn: 1, step: 1 } } });
 assert(retried.reasoningChars === 0 && retried.textFinalized === false && retried.firstTokenTime === null, "llm/retry resets the fold");
 
-// A still-open step (no step/end) materializes nothing.
+// A still-open step materializes a visible meta row immediately; streamed
+// chunks update it at animation-frame cadence instead of waiting for step/end.
 const openState = definition.update({ state: definition.start({}, { event: stepStart }) }, { event: reasoningChunk("partial", 2000) });
-assert(definition.buildViewNode({ key: "k", kind: definition.kind, id: "1:1", state: openState, start: { location: { kind: "step" } }, matches: [] }) === null, "open step materializes nothing");
+const liveNode = definition.buildViewNode({ key: "k", kind: definition.kind, id: "1:1", state: openState, start: { location: { kind: "step" } }, matches: [] });
+assert(liveNode !== null && liveNode.visibility === "visible" && liveNode.data.status === "running", `open step must publish live meta, got ${JSON.stringify(liveNode)}`);
+assert(liveNode.anchorSeq === 10 && liveNode.data.reasoningChars === 7, `live meta must follow the latest streamed chunk, got ${JSON.stringify(liveNode)}`);
+assert(definition.publication({ event: reasoningChunk("next", 2500) }) === "animation-frame", "streamed meta updates publish once per animation frame");
 
 // ── aborted-node component render with mocked framework hooks ──────────────
 const abortedComponent = nodeEntry.component;
+// The same keyed row is live before completion, distinguished semantically
+// while reusing the incremental readout math.
+const liveRender = abortedComponent({
+	node: { data: { status: "running", turn: 5, step: 1, reasoningChars: 80, totalChars: 80, outputTokens: null, reasoningTokens: null, firstTokenTime: 1000, lastTokenTime: 5000, messageTime: null } },
+	useProjection: () => ({ byTurn: { "5": { model: "deepseek-v4-pro" } } }),
+	t
+});
+assert(liveRender !== null && liveRender.props["data-dsh-response-meta"] === "live", `running component must expose the live marker, got ${JSON.stringify(liveRender)}`);
+assert(liveRender.props.children.props.children === "deepseek-v4-pro · 思考 80 字 · ~5 tok/s", `live readout, got ${JSON.stringify(liveRender.props.children.props.children)}`);
+
 // Chunked abort without usage: estimated reasoning toks/s (80 chars / 4 = 20
 // tokens over 4s = 5 tok/s), shown with the ~ marker.
 const abortedRender = abortedComponent({
-	node: { data: { turn: 5, step: 1, reasoningChars: 80, totalChars: 80, outputTokens: null, reasoningTokens: null, firstTokenTime: 1000, lastTokenTime: 5000, messageTime: null } },
+	node: { data: { status: "aborted", turn: 5, step: 1, reasoningChars: 80, totalChars: 80, outputTokens: null, reasoningTokens: null, firstTokenTime: 1000, lastTokenTime: 5000, messageTime: null } },
 	useProjection: () => ({ byTurn: { "5": { model: "deepseek-v4-pro" } } }),
 	t
 });

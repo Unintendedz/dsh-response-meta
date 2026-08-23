@@ -1,7 +1,7 @@
 # Gates: dsh-response-meta DSH plugin
 
-Goal: a DSH web plugin that, after each completed model output, shows one
-always-visible line with model, reasoning extent, toks/s, timestamp, total run,
+Goal: a DSH web plugin that shows a live line during each model output, then an
+exact completed line with model, reasoning extent, toks/s, timestamp, total run,
 and TTFT; removes the duplicate assistant hover clock without touching user
 timestamps; and keeps manually interrupted outputs covered.
 
@@ -21,8 +21,8 @@ timestamps; and keeps manually interrupted outputs covered.
 ## G3 — Client half
 - [x] G3: lib/client.js is a window.__ModuleLoader__.load bundle requiring only react and react/jsx-runtime
   EVIDENCE: bundle factory requires exactly `react/jsx-runtime` and `react`
-- [x] G3b: it registers into conversation.chat.assistant-actions (list, id dsh-response-meta, order 100) and a keyed chat.node entry for aborted steps
-  EVIDENCE: client-harness asserts both registrations; browser boot shows zero console errors
+- [x] G3b: it registers into conversation.chat.assistant-actions (list, id dsh-response-meta, order 100) and a keyed chat.node entry for live/aborted steps
+  EVIDENCE: client-harness asserts both registrations, a visible running node, animation-frame chunk publication, and the hidden handoff after finalization
 - [x] G3c: the completed line shows model + reasoning extent + toks/s + timestamp + run duration + TTFT, and renders nothing when no data exists
   CHECK: node tests/client-harness.mjs
   EXPECT: client bundle OK

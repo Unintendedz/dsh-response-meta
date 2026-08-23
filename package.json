@@ -1,7 +1,7 @@
 {
   "name": "dsh-response-meta",
-  "description": "DSH web plugin: one always-visible model and timing summary after each output",
-  "version": "0.1.0",
+  "description": "DSH web plugin: one live model and timing summary during every output",
+  "version": "0.2.0",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

@@ -2,9 +2,10 @@
 
 English | [中文](./README.zh.md)
 
-A DSH Web plugin that adds one always-visible runtime summary to every model
-reply: **model, reasoning extent, tokens per second, timestamp, total runtime,
-and time to first token (TTFT)**.
+A DSH Web plugin that adds one live runtime summary to every model reply:
+**model, reasoning extent, tokens per second, timestamp, total runtime, and
+time to first token (TTFT)**. The summary appears while the model is responding
+and updates as chunks arrive; it does not wait for the reply to finish.
 
 The plugin hides the duplicate native timing group that normally appears on
 hover in the same assistant action row, while preserving timestamps on user
@@ -14,6 +15,8 @@ reasoning, receive an inline summary as well.
 Example in a Chinese UI (11 px muted text):
 
 ```text
+# While streaming, inline in the message stream
+deepseek-v4-pro · 思考 1.5k 字 · ~42 tok/s
 # Completed reply, below the message actions
 deepseek-v4-pro · 思考 15 tok · 46 tok/s · 14:16 · 用时 2分24秒 · 首 token 2.1秒
 # Interrupted during reasoning, inline in the message stream
@@ -22,6 +25,9 @@ deepseek-v4-pro · 思考 1.5k 字
 
 - **Model** comes from the turn's `request/header` session event. Later turns
   without a new header inherit the most recent known model.
+- **Live updates** appear as soon as model or streamed-token data is available.
+  Reasoning extent and estimated throughput refresh at animation-frame cadence;
+  final provider usage replaces the estimate when the reply completes.
 - **Reasoning extent** prefers provider-reported reasoning tokens and falls
   back to the reasoning text length.
 - **Tokens/s** is output tokens divided by decode time, from first token to
@@ -39,7 +45,7 @@ deepseek-v4-pro · 思考 1.5k 字
 ## Install
 
 ```sh
-dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.1.0
+dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.2.0
 ```
 
 Restart the running DSH Web service after installation. Plugins are loaded
@@ -76,14 +82,18 @@ dsh plugin --profile web remove dsh-response-meta
   the browser through DSH's existing session-projection channel. The plugin
   implements the rc2 projection contract (`stateSchema` + `wire.viewSchema`).
 - **Browser** (`lib/client.js`):
+  - Running replies publish one incremental `dsh-response-meta-aborted`
+    conversation node from `step/start`; streamed chunks refresh it at most once
+    per animation frame. A visible finalized message hides that stable live node
+    and hands off to the exact completed summary. If the step is interrupted,
+    failed, or aborted, the same node remains visible.
   - Completed replies register in `conversation.chat.assistant-actions`. The
     component reads usage, step timing, turn timing, reasoning content, and the
     per-turn model projection for the exact `messageId`. A scoped structural
     selector hides only the native assistant timing group.
-  - Interrupted, failed, or aborted steps register through a
-    `dsh-response-meta-aborted` conversation event and a keyed
-    `conversation.chat.node` entry. This also covers reasoning-only steps that
-    never produced `turn/end`.
+  - The incremental node renders through a keyed `conversation.chat.node`
+    entry. This also covers reasoning-only steps that never produced
+    `turn/end`.
   - Actions remain on the first row; the complete summary owns a responsive
     second row. Narrow screens wrap without truncation or horizontal overflow.
 
@@ -95,4 +105,4 @@ node tests/live-e2e.mjs http://127.0.0.1:33880
 ```
 
 The live test requires a DSH Web test server running this plugin. The browser
-scripts in `tests/` cover interruption behavior and completed-row layout.
+scripts in `tests/` cover live/interruption behavior and completed-row layout.
