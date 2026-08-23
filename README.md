@@ -1,91 +1,98 @@
 # dsh-response-meta
 
-一个 dsh Web 插件：每次模型输出完成后，在该条消息的操作栏里显示一条统一的
-运行摘要：**模型名、推理程度、toks/s、时间戳、总用时、首 token 延迟**。
-这些信息一直可见；同一栏里原本需要 hover 才出现的原生时间组会被精准隐藏，
-避免重复。用户提问自己的时间戳保持不变。手动中断（含思考阶段就停止）时也会
-在消息流里补一行，显示模型与已生成的推理量。
+English | [中文](./README.zh.md)
 
-示例（11px 灰色文字）：
+A DSH Web plugin that adds one always-visible runtime summary to every model
+reply: **model, reasoning extent, tokens per second, timestamp, total runtime,
+and time to first token (TTFT)**.
 
-```
-# 正常完成（消息底部操作栏）
+The plugin hides the duplicate native timing group that normally appears on
+hover in the same assistant action row, while preserving timestamps on user
+messages. Manually interrupted replies, including replies stopped during
+reasoning, receive an inline summary as well.
+
+Example in a Chinese UI (11 px muted text):
+
+```text
+# Completed reply, below the message actions
 deepseek-v4-pro · 思考 15 tok · 46 tok/s · 14:16 · 用时 2分24秒 · 首 token 2.1秒
-# 思考阶段被中断（消息流内一行）
+# Interrupted during reasoning, inline in the message stream
 deepseek-v4-pro · 思考 1.5k 字
 ```
 
-- 模型名：来自会话日志中每次请求前记录的 `request/header`（与每条消息按 turn 对应）。
-  配置没变的后续 turn 不再落 header，因此按 turn 继承上一次已知模型。
-- 推理程度：优先显示提供商上报的 reasoning tokens（`思考 15 tok`）；未上报时退回推理文本字符数（`思考 80 字`）。
-- toks/s：该消息的输出 token 数 ÷（首 token 到消息完成）的解码耗时，与内置时钟同口径。
-- 时间戳：消息完成时间；当天只显示 `HH:mm`，历史消息保留日期。
-- 总用时：该 turn 从开始到结束的时长；首 token：当前输出从 step 开始到首个 token 的延迟。
-- 中断时通常没有 usage 记录，所以显示模型 + 已流出的推理字符数；若最终化竞态留下真实 usage，仍显示真实 toks/s。
-- 任一字段缺失就省略该段；全缺则什么都不渲染。
+- **Model** comes from the turn's `request/header` session event. Later turns
+  without a new header inherit the most recent known model.
+- **Reasoning extent** prefers provider-reported reasoning tokens and falls
+  back to the reasoning text length.
+- **Tokens/s** is output tokens divided by decode time, from first token to
+  message completion, matching DSH's native timing semantics.
+- **Timestamp** shows `HH:mm` for today's replies and includes the date for
+  older replies.
+- **Total runtime** spans the whole turn; **TTFT** spans the current step from
+  start to its first token.
+- Interrupted replies usually have no usage record, so the plugin shows the
+  model and streamed reasoning extent. Real usage is retained when a
+  finalization race provides it.
+- Missing fields are omitted individually; nothing is rendered when all fields
+  are unavailable.
 
-## 安装
+## Install
 
 ```sh
 dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.1.0
 ```
 
-然后**重启正在运行的 dsh web 服务**（插件装载发生在服务启动时，重启后生效）。
+Restart the running DSH Web service after installation. Plugins are loaded
+when the service starts.
 
-## 本地开发更新
+## Local development
 
 ```sh
-./scripts/install.sh   # remove + add，强制刷新本地 file: 快照
-# 再重启 dsh web 服务
+./scripts/install.sh   # remove + add to refresh the local file: snapshot
+# Restart the DSH Web service afterward.
 ```
 
-脚本会把 pnpm store 钉在 profile 已有的 `storeDir` 上，任意 shell 环境下运行都不会再出现
-`ERR_PNPM_UNEXPECTED_STORE`。若曾手工动过 store，先重链一次：
+The script reuses the profile's configured pnpm `storeDir`, preventing
+`ERR_PNPM_UNEXPECTED_STORE` when run from a different shell. If the store was
+changed manually, relink it once:
 
 ```sh
 cd ~/.dsh/profiles/web && pnpm install --config.confirm-modules-purge=false
 ```
 
-## 卸载
+## Uninstall
 
 ```sh
 dsh plugin --profile web remove dsh-response-meta
 ```
 
-## 工作原理
+## How it works
 
-- **主机侧**（`lib/index.js`）：在 `ctx.sessionProjections` 上注册一个零依赖的
-  投影单元 `dsh-response-meta`，纯函数折叠会话事件：跟踪当前 turn/step，把每个
-  turn 内最后一次 `request/header` 的模型名记入 `byTurn[turn]`；没有 header
-  事件的 turn 继承上一次已知模型。turn 外的 header（标题、压缩等辅助调用）
-  被忽略。投影值经既有 session-projection 通道送达浏览器（历史页基线 +
-  `session/projection` 帧）。适配 rc2 投影契约（`stateSchema` + `wire.viewSchema`）。
-- **浏览器侧**（`lib/client.js`）：
-  - 正常完成的消息：注册进 `conversation.chat.assistant-actions` 列表槽
-    （order 100，与复制/分支按钮并存）。组件按 `messageId` 从会话快照取出
-    最终 assistant 节点，取其 usage（output/reasoning tokens）、timing
-    （step 开始、首 token、完成）、turnTimings（turn 总用时）和 reasoning
-    文本块，再从投影里取该 turn 的模型名。完成态摘要存在时，用语义化结构选择器
-    只隐藏同一 AI 操作栏最后的原生时间组；不会命中用户消息时间戳。
-  - 中断/失败/被中止的 step：注册一个 `conversationEvents` 定义
-    `dsh-response-meta-aborted`，为「结束了但没有可见文本答案」的 step 物化一个
-    自己的 chat 节点（含已累计的推理字符数），再以 keyed
-    `conversation.chat.node` 条目渲染。思考阶段就停止时日志里根本没有
-    `turn/end`，只有这条路能显示；与最终化竞态留下的 reasoning-only
-    message 也不被视为「有答案」，照常显示。
-  - 样式：字体 11px、颜色用主题的 `--dsw-alias-label-tertiary`、
-    `user-select:none`、`pointer-events:none`。操作按钮留在第一行，完整摘要固定占据
-    下一行；窄屏自然换行，不截断也不产生横向滚动。
+- **Host** (`lib/index.js`): registers a dependency-free projection unit on
+  `ctx.sessionProjections`. It folds session events, tracks the active
+  turn/step, records the last in-turn `request/header` model in `byTurn`, and
+  inherits the previous model for header-less turns. Headers outside turns,
+  such as title or compaction requests, are ignored. Projection updates reach
+  the browser through DSH's existing session-projection channel. The plugin
+  implements the rc2 projection contract (`stateSchema` + `wire.viewSchema`).
+- **Browser** (`lib/client.js`):
+  - Completed replies register in `conversation.chat.assistant-actions`. The
+    component reads usage, step timing, turn timing, reasoning content, and the
+    per-turn model projection for the exact `messageId`. A scoped structural
+    selector hides only the native assistant timing group.
+  - Interrupted, failed, or aborted steps register through a
+    `dsh-response-meta-aborted` conversation event and a keyed
+    `conversation.chat.node` entry. This also covers reasoning-only steps that
+    never produced `turn/end`.
+  - Actions remain on the first row; the complete summary owns a responsive
+    second row. Narrow screens wrap without truncation or horizontal overflow.
 
-## 验证
+## Verify
 
 ```sh
-node tests/host-fold.mjs      # 主机折叠纯函数（合成事件，含继承/中断场景）
-node tests/client-harness.mjs # 浏览器包：纯函数 + 注册 + aborted 定义 + 组件渲染
-node tests/live-e2e.mjs http://127.0.0.1:33880   # 需要一台跑着本插件的 dsh web 测试服
+npm test
+node tests/live-e2e.mjs http://127.0.0.1:33880
 ```
 
-live-e2e 会创建一个小会话、发一句话、等 turn 结束，然后断言
-`session.history` 的 projections 里出现 `dsh-response-meta.byTurn` 且模型名非空。
-浏览器级的中断场景可用 `tests/browser-interrupt.js` /
-`tests/browser-interrupt-mid.js` 复验；完成态排布用 `tests/browser-layout.js` 复验。
+The live test requires a DSH Web test server running this plugin. The browser
+scripts in `tests/` cover interruption behavior and completed-row layout.
