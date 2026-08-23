@@ -1,0 +1,46 @@
+{
+  "name": "dsh-response-meta",
+  "description": "DSH web plugin: one always-visible model and timing summary after each output",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "package.json"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "author": "Unintended",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Unintendedz/dsh-response-meta.git"
+  },
+  "homepage": "https://github.com/Unintendedz/dsh-response-meta#readme",
+  "bugs": {
+    "url": "https://github.com/Unintendedz/dsh-response-meta/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "plugin",
+    "llm",
+    "response-metrics"
+  ],
+  "scripts": {
+    "test": "node tests/host-fold.mjs && node tests/client-harness.mjs"
+  }
+}

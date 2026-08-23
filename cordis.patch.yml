@@ -1,0 +1,7 @@
+# dsh-response-meta bundle patch: mounts the plugin into the profile tree.
+# The node half registers the `dsh-response-meta` session projection; the browser
+# half is discovered from the package's `dsh.client` declaration and renders
+# the per-message readout line.
+- insert:
+    - id: dsh-response-meta
+      name: dsh-response-meta
