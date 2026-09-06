@@ -34,24 +34,30 @@ deepseek-v4-pro · 思考 1.5k 字
 ## 安装
 
 ```sh
-dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.2.0
+dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.2.1
 ```
 
 然后**重启正在运行的 dsh web 服务**（插件装载发生在服务启动时，重启后生效）。
 
 ## 本地开发更新
 
+本地安装脚本要求显式指定 `DSH_HOME` 和 `--profile`（或 `DSH_PROFILE`），
+不会默认操作已有 home 或 `web` profile。它通过 remove + add 刷新本地 `file:`
+快照，并复用所选 profile 的 pnpm `storeDir`，支持路径中的空格。
+之后只重启对应 profile 的 Web 实例。
+
+每次测试都创建全新的临时 home 和合成工作区：
+
 ```sh
-./scripts/install.sh   # remove + add，强制刷新本地 file: 快照
-# 再重启 dsh web 服务
+export DSH_HOME="$(mktemp -d "${TMPDIR:-/tmp}/dsh-response-meta.XXXXXX")"
+export DSH_PROFILE=audit-response-meta
+mkdir -p "$DSH_HOME/workspace"
+./scripts/install.sh --profile "$DSH_PROFILE"
 ```
 
-脚本会把 pnpm store 钉在 profile 已有的 `storeDir` 上，任意 shell 环境下运行都不会再出现
-`ERR_PNPM_UNEXPECTED_STORE`。若曾手工动过 store，先重链一次：
-
-```sh
-cd ~/.dsh/profiles/web && pnpm install --config.confirm-modules-purge=false
-```
+使用独立空闲回环端口和合成提供商、会话数据，不复制已有 profile 的设置、凭据、
+会话、缓存或浏览器状态。在任何 Web 交互前记录 home、profile、端口、工作区及
+进程 ID；测试后停止经过核对的测试进程，只删除它对应的临时目录。
 
 ## 卸载
 
@@ -88,12 +94,19 @@ dsh plugin --profile web remove dsh-response-meta
 ## 验证
 
 ```sh
-node tests/host-fold.mjs      # 主机折叠纯函数（合成事件，含继承/中断场景）
-node tests/client-harness.mjs # 浏览器包：纯函数 + 注册 + aborted 定义 + 组件渲染
-node tests/live-e2e.mjs http://127.0.0.1:33880   # 需要一台跑着本插件的 dsh web 测试服
+npm test
+DSH_TEST_IDENTITY=/path/to/test-instance.json \
+  node tests/live-e2e.mjs http://127.0.0.1:33880
 ```
 
-live-e2e 会创建一个小会话、发一句话、等 turn 结束，然后断言
-`session.history` 的 projections 里出现 `dsh-response-meta.byTurn` 且模型名非空。
-浏览器级的实时/中断场景可用 `tests/browser-interrupt.js` /
-`tests/browser-interrupt-mid.js` 复验；完成态排布用 `tests/browser-layout.js` 复验。
+live 命令还要求保留隔离启动器设置的 `DSH_HOME` 和 `DSH_PROFILE`。
+身份 JSON 必须包含与该实例一致的 `dshHome`、`profile`、`host`（固定为
+`127.0.0.1`）、数字 `port`、运行中服务器的数字 `pid`、`workspace` 和
+`synthetic: true`。home 与工作区都必须位于操作系统的临时目录中，profile
+名称必须以 `audit-`、`test-` 或 `fix-` 开头；脚本拒绝 33080 端口。
+运行前在这个新 profile 中配置本地合成模型提供商，无需已有 profile 的凭据或设置。
+
+脚本创建合成会话，仅当同一 turn 以 `completed` 正常结束、最终可见回答恰为
+`OK`，且该 turn 有非空模型投影时通过。提前到达的投影、中断或失败的部分回答、
+错误答案或超时都判定失败。`tests/` 中的浏览器脚本覆盖实时/中断行为和完成行布局，
+同样只能在隔离实例与全新浏览器上下文中运行。

@@ -45,7 +45,7 @@ deepseek-v4-pro · 思考 1.5k 字
 ## Install
 
 ```sh
-dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.2.0
+dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.2.1
 ```
 
 Restart the running DSH Web service after installation. Plugins are loaded
@@ -53,18 +53,26 @@ when the service starts.
 
 ## Local development
 
+The local installer requires an explicit `DSH_HOME` and `--profile` (or
+`DSH_PROFILE`). It never defaults to an existing home or the `web` profile.
+It removes and re-adds the local `file:` snapshot, reusing the selected profile's
+pnpm `storeDir`, including paths containing spaces. Restart only that profile's
+Web instance afterward.
+
+Use a fresh temporary home and synthetic workspace for every test:
+
 ```sh
-./scripts/install.sh   # remove + add to refresh the local file: snapshot
-# Restart the DSH Web service afterward.
+export DSH_HOME="$(mktemp -d "${TMPDIR:-/tmp}/dsh-response-meta.XXXXXX")"
+export DSH_PROFILE=audit-response-meta
+mkdir -p "$DSH_HOME/workspace"
+./scripts/install.sh --profile "$DSH_PROFILE"
 ```
 
-The script reuses the profile's configured pnpm `storeDir`, preventing
-`ERR_PNPM_UNEXPECTED_STORE` when run from a different shell. If the store was
-changed manually, relink it once:
-
-```sh
-cd ~/.dsh/profiles/web && pnpm install --config.confirm-modules-purge=false
-```
+Use a dedicated free loopback port and synthetic provider/session data. Never
+copy an existing profile's settings, credentials, sessions, caches, or browser
+state. Record the home, profile, port, workspace and process ID before any Web
+interaction; stop the verified test process and remove only its temporary
+directory afterward.
 
 ## Uninstall
 
@@ -101,8 +109,22 @@ dsh plugin --profile web remove dsh-response-meta
 
 ```sh
 npm test
-node tests/live-e2e.mjs http://127.0.0.1:33880
+DSH_TEST_IDENTITY=/path/to/test-instance.json \
+  node tests/live-e2e.mjs http://127.0.0.1:33880
 ```
 
-The live test requires a DSH Web test server running this plugin. The browser
-scripts in `tests/` cover live/interruption behavior and completed-row layout.
+The live command also requires `DSH_HOME` and `DSH_PROFILE` from the isolated
+launcher. Its identity JSON must contain `dshHome`, `profile`, `host` (exactly
+`127.0.0.1`), numeric `port`, the running server's numeric `pid`, `workspace`,
+and `synthetic: true`, all matching that instance. Both home and workspace must
+be beneath the operating system's temporary directory, and the profile must
+start with `audit-`, `test-`, or `fix-`. The live harness rejects port 33080.
+Configure a local synthetic model provider in this new profile before running
+it; no credentials or settings from an existing profile are needed.
+
+The check creates a synthetic session and passes only when the same turn ends
+with reason `completed`, the final visible answer is exactly `OK`, and that
+turn has a nonempty model projection. An early projection, interrupted or
+failed partial reply, wrong answer, or timeout fails the check. The browser
+scripts in `tests/` cover live/interruption behavior and completed-row layout;
+run them only in the same isolated instance and a fresh browser context.

@@ -1,7 +1,7 @@
 {
   "name": "dsh-response-meta",
   "description": "DSH web plugin: one live model and timing summary during every output",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -41,6 +41,6 @@
     "response-metrics"
   ],
   "scripts": {
-    "test": "node tests/host-fold.mjs && node tests/client-harness.mjs"
+    "test": "node tests/host-fold.mjs && node tests/client-harness.mjs && node --test tests/*.test.mjs"
   }
 }
