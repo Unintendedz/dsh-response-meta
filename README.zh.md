@@ -5,9 +5,9 @@
 一个 dsh Web 插件：为每次模型输出显示一条实时运行摘要：**模型名、推理程度、
 toks/s、时间戳、总用时、首 token 延迟**。模型还在响应时摘要就会出现，并随
 chunk 到达持续更新，不再等到响应完成。
-这些信息一直可见；同一栏里原本需要 hover 才出现的原生时间组会被精准隐藏，
-避免重复。用户提问自己的时间戳保持不变。手动中断（含思考阶段就停止）时也会
-在消息流里补一行，显示模型与已生成的推理量。
+这些信息一直可见；插件隐藏重复的原生 AI 回复时间戳，同时保留用户消息时间戳、
+原生用量和运行时间详情按钮。手动中断（含思考阶段就停止）时也会在消息流里补一行，
+显示模型与已生成的推理量。
 
 示例（11px 灰色文字）：
 
@@ -31,10 +31,14 @@ deepseek-v4-pro · 思考 1.5k 字
 - 中断时通常没有 usage 记录，所以显示模型 + 已流出的推理字符数；若最终化竞态留下真实 usage，仍显示真实 toks/s。
 - 任一字段缺失就省略该段；全缺则什么都不渲染。
 
+## 要求
+
+DSH `0.1.2-rc.1` 和 Web profile。`0.3.0` 通过新的 `uiConversation.events` 接口注册实时回复节点，并通过 `useChat` 读取已完成消息的数据；旧版 DSH 请继续使用插件 `0.2.1`。
+
 ## 安装
 
 ```sh
-dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.2.1
+dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.3.0
 ```
 
 然后**重启正在运行的 dsh web 服务**（插件装载发生在服务启动时，重启后生效）。
@@ -72,7 +76,7 @@ dsh plugin --profile web remove dsh-response-meta
   turn 内最后一次 `request/header` 的模型名记入 `byTurn[turn]`；没有 header
   事件的 turn 继承上一次已知模型。turn 外的 header（标题、压缩等辅助调用）
   被忽略。投影值经既有 session-projection 通道送达浏览器（历史页基线 +
-  `session/projection` 帧）。适配 rc2 投影契约（`stateSchema` + `wire.viewSchema`）。
+  `session/projection` 帧）。适配 投影契约（`stateSchema` + `wire.viewSchema`）。
 - **浏览器侧**（`lib/client.js`）：
   - 响应进行中：从 `step/start` 起发布一个增量
     `dsh-response-meta-aborted` 会话节点；流式 chunk 最多每个动画帧刷新一次。
@@ -83,7 +87,7 @@ dsh plugin --profile web remove dsh-response-meta
     最终 assistant 节点，取其 usage（output/reasoning tokens）、timing
     （step 开始、首 token、完成）、turnTimings（turn 总用时）和 reasoning
     文本块，再从投影里取该 turn 的模型名。完成态摘要存在时，用语义化结构选择器
-    只隐藏同一 AI 操作栏最后的原生时间组；不会命中用户消息时间戳。
+    只隐藏同一 AI 操作栏最后的重复时间戳；保留用户消息时间戳以及原生用量、运行时间详情按钮。
   - 增量节点通过 keyed `conversation.chat.node` 条目渲染。思考阶段就停止时
     日志里根本没有 `turn/end`，这条路径仍能显示；与最终化竞态留下的
     reasoning-only message 也不被视为「有答案」，照常显示。

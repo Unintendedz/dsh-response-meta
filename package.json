@@ -1,7 +1,7 @@
 {
   "name": "dsh-response-meta",
   "description": "DSH web plugin: one live model and timing summary during every output",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -13,7 +13,9 @@
     "lib/index.js",
     "lib/client.js",
     "cordis.patch.yml",
-    "package.json"
+    "package.json",
+    "README.md",
+    "README.zh.md"
   ],
   "license": "MIT",
   "dsh": {

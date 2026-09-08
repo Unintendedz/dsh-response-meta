@@ -108,7 +108,7 @@ assert(modelOnly === "m", `model-only readout, got ${JSON.stringify(modelOnly)}`
 
 assert(api.deriveReadout({ ...node, blocks: [], usage: undefined, timing: undefined }, null, t) === null, "no data at all renders nothing");
 assert(api.deriveReadout(null, "m", t) === null, "null node renders nothing");
-assert(bundleText.includes("[data-time-hover-root] [data-slot$=assistant-actions]:has(>[data-dsh-response-meta=complete])~span:last-child{display:none}"), "completed readout must hide only its sibling native assistant clock");
+assert(bundleText.includes("[data-turn-tail] [data-slot$=assistant-actions]:has(>[data-dsh-response-meta=complete])~span:last-child{display:none}"), "completed readout must hide only its sibling native assistant clock");
 
 // ── apply registration with a mock client ctx ──────────────────────────────
 const registrations = [];
@@ -123,12 +123,12 @@ const ctx = {
 	locale: {
 		register: (ns, dicts) => dictionaries.push([ns, dicts])
 	},
-	conversationEvents: {
+	uiConversation: { events: {
 		register: (definition) => {
 			definitions.push(definition);
 			return () => {};
 		}
-	},
+	} },
 	slots: {
 		inject: (key, fn) => {
 			injectedKeys.push(key);
@@ -142,7 +142,7 @@ const ctx = {
 	}
 };
 api.apply(ctx);
-assert(api.inject.includes("conversationEvents"), "client inject declares conversationEvents");
+assert(api.inject.includes("uiConversation"), "client inject declares the DSH 0.1.2 uiConversation service");
 assert(dictionaries.length === 1 && dictionaries[0][0] === "dsh-response-meta", "dictionaries registered under the plugin namespace");
 assert(registrations.length === 2, `two slot entries registered, got ${registrations.length}`);
 assert(injectedKeys.includes("conversation.chat.assistant-actions") && injectedKeys.includes("conversation.chat.node"), `both slot keys injected, got ${JSON.stringify(injectedKeys)}`);
@@ -163,7 +163,7 @@ let render;
 try {
 	render = component({
 		messageId: "m1",
-		useSession: (selector) => selector({ nodes: [node], turnTimings: new Map([[3, turnTiming]]) }),
+		useChat: (selector) => selector({ legacy: { nodes: [node], turnTimings: new Map([[3, turnTiming]]) } }),
 		useProjection: () => ({ byTurn: { "3": { model: "deepseek-v4-flash" } } }),
 		t
 	});
@@ -176,7 +176,7 @@ assert(render.props.children === "deepseek-v4-flash · 思考 400 tok · 34 tok/
 
 const blank = component({
 	messageId: "m2",
-	useSession: () => null,
+	useChat: () => null,
 	useProjection: () => ({ byTurn: {} }),
 	t
 });
@@ -184,7 +184,7 @@ assert(blank === null, "component renders nothing without a node");
 
 const absentModel = component({
 	messageId: "m1",
-	useSession: (selector) => selector({ nodes: [{ ...node, blocks: [], usage: undefined, timing: undefined }] }),
+	useChat: (selector) => selector({ legacy: { nodes: [{ ...node, blocks: [], usage: undefined, timing: undefined }] } }),
 	useProjection: () => ({ byTurn: {} }),
 	t
 });

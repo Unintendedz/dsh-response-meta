@@ -7,9 +7,8 @@ A DSH Web plugin that adds one live runtime summary to every model reply:
 time to first token (TTFT)**. The summary appears while the model is responding
 and updates as chunks arrive; it does not wait for the reply to finish.
 
-The plugin hides the duplicate native timing group that normally appears on
-hover in the same assistant action row, while preserving timestamps on user
-messages. Manually interrupted replies, including replies stopped during
+The plugin hides the duplicate native assistant timestamp while preserving user
+message timestamps and the native usage and runtime detail buttons. Manually interrupted replies, including replies stopped during
 reasoning, receive an inline summary as well.
 
 Example in a Chinese UI (11 px muted text):
@@ -42,10 +41,14 @@ deepseek-v4-pro · 思考 1.5k 字
 - Missing fields are omitted individually; nothing is rendered when all fields
   are unavailable.
 
+## Requirements
+
+DSH `0.1.2-rc.1` with a Web profile. Version `0.3.0` registers live response nodes through the new `uiConversation.events` interface and reads finalized message details through `useChat`. Keep plugin `0.2.1` on older DSH installations.
+
 ## Install
 
 ```sh
-dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.2.1
+dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.3.0
 ```
 
 Restart the running DSH Web service after installation. Plugins are loaded
@@ -88,7 +91,7 @@ dsh plugin --profile web remove dsh-response-meta
   inherits the previous model for header-less turns. Headers outside turns,
   such as title or compaction requests, are ignored. Projection updates reach
   the browser through DSH's existing session-projection channel. The plugin
-  implements the rc2 projection contract (`stateSchema` + `wire.viewSchema`).
+  implements the projection contract (`stateSchema` + `wire.viewSchema`).
 - **Browser** (`lib/client.js`):
   - Running replies publish one incremental `dsh-response-meta-aborted`
     conversation node from `step/start`; streamed chunks refresh it at most once
@@ -98,7 +101,7 @@ dsh plugin --profile web remove dsh-response-meta
   - Completed replies register in `conversation.chat.assistant-actions`. The
     component reads usage, step timing, turn timing, reasoning content, and the
     per-turn model projection for the exact `messageId`. A scoped structural
-    selector hides only the native assistant timing group.
+    selector hides only the duplicate native assistant timestamp.
   - The incremental node renders through a keyed `conversation.chat.node`
     entry. This also covers reasoning-only steps that never produced
     `turn/end`.
