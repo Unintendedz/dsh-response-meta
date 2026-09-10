@@ -43,12 +43,12 @@ deepseek-v4-pro · 思考 1.5k 字
 
 ## Requirements
 
-DSH `0.1.2-rc.1` with a Web profile. Version `0.3.0` registers live response nodes through the new `uiConversation.events` interface and reads finalized message details through `useChat`. Keep plugin `0.2.1` on older DSH installations.
+DSH `0.1.5-rc.1` with a Web profile. Version `0.4.0` handles transient `assistant/live-chunk` events and the packed streams embedded in durable messages and interrupted attempts. It reconstructs reasoning counts and token timing after a cold load, and preserves completed throughput and TTFT when the host retires transient chunks. Settlement replaces transient counters to avoid double counting. Keep plugin `0.3.0` with DSH `0.1.2-rc.1`, and `0.2.1` with older DSH installations.
 
 ## Install
 
 ```sh
-dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.3.0
+dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.4.0
 ```
 
 Restart the running DSH Web service after installation. Plugins are loaded

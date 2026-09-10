@@ -33,12 +33,12 @@ deepseek-v4-pro · 思考 1.5k 字
 
 ## 要求
 
-DSH `0.1.2-rc.1` 和 Web profile。`0.3.0` 通过新的 `uiConversation.events` 接口注册实时回复节点，并通过 `useChat` 读取已完成消息的数据；旧版 DSH 请继续使用插件 `0.2.1`。
+DSH `0.1.5-rc.1` 和 Web profile。`0.4.0` 支持临时的 `assistant/live-chunk` 事件，以及已完成消息和中断 attempt 中嵌入的压缩流。冷加载后可重建推理字符数与 token 时间；宿主撤回临时 chunk 后，完成态仍保留吞吐量和首 token 延迟。定稿数据替换临时计数，避免重复累计。DSH `0.1.2-rc.1` 请继续使用插件 `0.3.0`，更早的 DSH 使用 `0.2.1`。
 
 ## 安装
 
 ```sh
-dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.3.0
+dsh plugin --profile web add github:Unintendedz/dsh-response-meta#v0.4.0
 ```
 
 然后**重启正在运行的 dsh web 服务**（插件装载发生在服务启动时，重启后生效）。
@@ -88,8 +88,8 @@ dsh plugin --profile web remove dsh-response-meta
     （step 开始、首 token、完成）、turnTimings（turn 总用时）和 reasoning
     文本块，再从投影里取该 turn 的模型名。完成态摘要存在时，用语义化结构选择器
     只隐藏同一 AI 操作栏最后的重复时间戳；保留用户消息时间戳以及原生用量、运行时间详情按钮。
-  - 增量节点通过 keyed `conversation.chat.node` 条目渲染。思考阶段就停止时
-    日志里根本没有 `turn/end`，这条路径仍能显示；与最终化竞态留下的
+  - 增量节点通过 keyed `conversation.chat.node` 条目渲染。即使思考阶段停止且
+    日志里没有 `turn/end`，这条路径仍能显示；与最终化竞态留下的
     reasoning-only message 也不被视为「有答案」，照常显示。
   - 样式：字体 11px、颜色用主题的 `--dsw-alias-label-tertiary`、
     `user-select:none`、`pointer-events:none`。操作按钮留在第一行，完整摘要固定占据

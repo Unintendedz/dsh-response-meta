@@ -174,6 +174,16 @@ assert(render !== null && render.type === "span", "component renders a span when
 assert(render.props["data-dsh-response-meta"] === "complete", "completed readout is tagged separately from aborted rows");
 assert(render.props.children === "deepseek-v4-flash · 思考 400 tok · 34 tok/s · 14:16 · 用时 2分24秒 · 首 token 2.1秒", `rendered readout, got ${JSON.stringify(render.props.children)}`);
 
+const v3Render = component({
+  messageId: "m1",
+  useChat: selector => selector({
+    legacy: { nodes: [{ ...node, timing: { ...node.timing, firstTokenTime: null } }] },
+    nodes: { values: () => [{ kind: "dsh-response-meta-aborted", data: { turn: node.turn, step: node.step, firstTokenTime: node.timing.firstTokenTime } }] },
+  }),
+  useProjection: () => ({ byTurn: { "3": { model: "deepseek-v4-flash" } } }), t,
+});
+assert(v3Render.props.children.includes("34 tok/s") && v3Render.props.children.includes("首 token 2.1秒"), "completed V3 readout uses settled stream timing after native transient retirement");
+
 const blank = component({
 	messageId: "m2",
 	useChat: () => null,
@@ -251,6 +261,26 @@ const liveNode = definition.buildViewNode({ key: "k", kind: definition.kind, id:
 assert(liveNode !== null && liveNode.visibility === "visible" && liveNode.data.status === "running", `open step must publish live meta, got ${JSON.stringify(liveNode)}`);
 assert(liveNode.anchorSeq === 10 && liveNode.data.reasoningChars === 7, `live meta must follow the latest streamed chunk, got ${JSON.stringify(liveNode)}`);
 assert(definition.publication({ event: reasoningChunk("next", 2500) }) === "animation-frame", "streamed meta updates publish once per animation frame");
+
+// V3 replaces durable chunk rows with transient live chunks and packed settlements.
+const nativeChunk = { ...reasoningChunk("thinking", 2000), type: "assistant/live-chunk" };
+assert(definition.match(nativeChunk)?.id === "1:1", "V3 live chunks update the existing step");
+const nativeLive = definition.update({ state: definition.start({}, { event: stepStart }) }, { event: nativeChunk });
+assert(nativeLive.reasoningChars === 8 && nativeLive.firstTokenTime === 2000, "V3 live reasoning contributes text and timing");
+assert(definition.publication({ event: nativeChunk }) === "animation-frame", "V3 live chunks preserve frame cadence");
+const nativeAttempt = { type: "assistant/attempt", seq: 12, time: 5000, data: {
+  turn: 1, step: 1, stream: [
+    { type: "reasoning-chunks", index: 0, time0: 2000, dt: [1000], texts: ["thinking", " done"] },
+    { type: "text-chunks", index: 1, time0: 4000, dt: [], texts: ["partial"] },
+    { type: "chunk", time: 4500, chunk: { type: "usage", usage: { outputTokens: 20 } } },
+  ],
+} };
+assert(definition.match(nativeAttempt)?.id === "1:1", "V3 interrupted attempts update the step");
+const restoredAttempt = definition.update({ state: definition.start({}, { event: stepStart }) }, { event: nativeAttempt });
+const settledAttempt = definition.update({ state: nativeLive }, { event: nativeAttempt });
+assert(restoredAttempt.reasoningChars === 13 && restoredAttempt.totalChars === 20, "cold V3 attempts retain packed reasoning and text");
+assert(settledAttempt.reasoningChars === 13 && settledAttempt.totalChars === 20, "settlement replaces transient counts without double counting");
+assert(restoredAttempt.firstTokenTime === 2000 && restoredAttempt.lastTokenTime === 4000 && restoredAttempt.usage.outputTokens === 20, "packed attempt timing and provider usage survive cold reads");
 
 // ── aborted-node component render with mocked framework hooks ──────────────
 const abortedComponent = nodeEntry.component;
